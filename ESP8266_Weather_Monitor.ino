@@ -5,7 +5,61 @@
 #include <SparkFun_Si7021_Breakout_Library.h>
 #include <WiFiManager.h>
 
-const uint32_t POLL_INTERVAL_sec = 5 * 60;
+// Description:
+//
+//   Basic temperature and humidity sensor logs to Adafruit I/O
+//   via Wi-Fi.  It has a Wi-Fi captive portal mode to allow
+//   saving credentials directly into its flash rather than
+//   putting them into the source file.
+//
+// Hardware:
+//
+//   The main board is a Sparkfun ESP8266 Thing.  It has a
+//   Sparkfun 850mAH LiPo battery, and it uses a Sparkfun
+//   Si7021 temperature/humidity breakout.  To program the
+//   Thing, a Sparkfun FTDI Basic board is used.
+//
+// Part Numbers:
+//   PRT-13231 SparkFun ESP8266 Thing
+//   PRT-13854 Lithium Ion Battery
+//   PRT-13763 SparkFun Humidity and Temperature Sensor
+//             Breakout - Si7021
+//   DEV-09873 SparkFun FTDI Basic Breakout - 3.3V
+//
+// ESP8266 Thing Pins:
+//
+//   The temperature/humidity sensor is on the four pins at
+//   the top of the Thing's left side: GND, 3V3, SDA,
+//   and SCL, as recommended by Sparkfun.
+//
+//   During programming, the FTDI card is attached to the six
+//   pins at the Thing's bottom left: DTR, TX0, RX1, 3V3, NC,
+//   and GND.
+//
+//   During normal operation, pins DTR and XPD are jumpered
+//   together.
+//
+//   To force the unit into captive portal mode, move the
+//   jumper so that pins XPD and 12 are shorted.
+//
+// References:
+//
+//   SparkFun ESP8266 Thing Hookup Guide
+//   https://learn.sparkfun.com/tutorials/esp8266-thing-\
+//   hookup-guide/programming-the-thing
+//
+//   SparkFun Si7021 Humidity and Temperature Sensor Hookup Guide
+//   https://learn.sparkfun.com/tutorials/si7021-humidity-and-\
+//   temperature-sensor-hookup-guide
+//
+//   Making The ESP8266 Low-Powered with Deep Sleep
+//   https://www.losant.com/blog/making-the-esp8266-low-\
+//   powered-with-deep-sleep
+//
+//   Wi-Fi Manager Library
+//   https://github.com/tzapu/WiFiManager
+
+const uint32_t POLL_INTERVAL_sec = 15 * 60;
 
 const int SERIAL_BAUD = 115200;
 const uint32_t SERIAL_SETTLING_msec = 100;
@@ -44,7 +98,7 @@ float humid_pct;        // last humidity reading, relative percent
 void init_serial()
 {
   Serial.begin(SERIAL_BAUD);
-  uint32_t t0 = millis();      
+  uint32_t t0 = millis();
   while (millis() < t0 + SERIAL_SETTLING_msec)
     continue;
   Serial.print("\n\n");
@@ -107,7 +161,7 @@ bool read_config_data()
   char buf[size];
   f.readBytes(buf, size);
   f.close();
-  
+
   DynamicJsonBuffer jsonBuffer;
   JsonObject& json = jsonBuffer.parseObject(buf);
   if (!json.success()) {
@@ -115,13 +169,13 @@ bool read_config_data()
     return false;
   }
 
-  #define GET(name) (strlcpy0(name, json[#name], sizeof name))
-    GET(device_ident);
-    GET(aio_user);
-    GET(aio_user_key);
-    GET(aio_temp_key);
-    GET(aio_humid_key);
-  #undef GET
+#define GET(name) (strlcpy0(name, json[#name], sizeof name))
+  GET(device_ident);
+  GET(aio_user);
+  GET(aio_user_key);
+  GET(aio_temp_key);
+  GET(aio_humid_key);
+#undef GET
 
   return device_ident[0] &&
          aio_user[0] &&
@@ -199,17 +253,17 @@ void init_WiFi()
   }
   info(ssid);
 
-  #define DCL_PARAM(param, var, desc) \
-    WiFiManagerParameter param(#var, desc, var, sizeof var)
+#define DCL_PARAM(param, var, desc) \
+  WiFiManagerParameter param(#var, desc, var, sizeof var)
 
-    DCL_PARAM(did_param, device_ident, "Device Identity");
-    DCL_PARAM(au_param, aio_user, "Adafruit IO User Name");
-    DCL_PARAM(auk_param, aio_user_key, "Adafruit IO User Key");
-    DCL_PARAM(atk_param,
-              aio_temp_key,
-              "Adafruit IO Temperature Key");
-    DCL_PARAM(ahk_param, aio_humid_key, "Adafruit IO Humidity Key");
-  #undef DCL_PARAM
+  DCL_PARAM(did_param, device_ident, "Device Identity");
+  DCL_PARAM(au_param, aio_user, "Adafruit IO User Name");
+  DCL_PARAM(auk_param, aio_user_key, "Adafruit IO User Key");
+  DCL_PARAM(atk_param,
+            aio_temp_key,
+            "Adafruit IO Temperature Key");
+  DCL_PARAM(ahk_param, aio_humid_key, "Adafruit IO Humidity Key");
+#undef DCL_PARAM
 
   WiFiManager mgr;
 
@@ -231,16 +285,16 @@ void init_WiFi()
   }
 
   if (config_needs_saving) {
-    #define RD_PARAM(param, var) \
-      (strlcpy(var, param.getValue(), sizeof var))
+#define RD_PARAM(param, var) \
+  (strlcpy(var, param.getValue(), sizeof var))
 
-      RD_PARAM(did_param, device_ident);
-      RD_PARAM(au_param, aio_user);
-      RD_PARAM(auk_param, aio_user_key);
-      RD_PARAM(atk_param, aio_temp_key);
-      RD_PARAM(ahk_param, aio_humid_key);
+    RD_PARAM(did_param, device_ident);
+    RD_PARAM(au_param, aio_user);
+    RD_PARAM(auk_param, aio_user_key);
+    RD_PARAM(atk_param, aio_temp_key);
+    RD_PARAM(ahk_param, aio_humid_key);
 
-    #undef RD_PARAM
+#undef RD_PARAM
 
     write_config_data();
   }
@@ -332,7 +386,7 @@ void log_data_Adafruit_IO()
   char temp_topic[64], humid_topic[64];
   snprintf(temp_topic, sizeof temp_topic,
            "%s/feeds/%s", aio_user, aio_temp_key);
-  snprintf(humid_topic,sizeof humid_topic,
+  snprintf(humid_topic, sizeof humid_topic,
            "%s/feeds/%s", aio_user, aio_humid_key);
   info(temp_topic);
   info(humid_topic);
@@ -340,8 +394,8 @@ void log_data_Adafruit_IO()
   WiFiClientSecure client;
   Adafruit_MQTT_Client mqtt(&client,
                             AIO_SERVER,
-                            AIO_SERVER_PORT, 
-                            aio_user, 
+                            AIO_SERVER_PORT,
+                            aio_user,
                             aio_user_key);
   Adafruit_MQTT_Publish temp(&mqtt, temp_topic, MQTT_QOS_1);
   Adafruit_MQTT_Publish humid(&mqtt, humid_topic, MQTT_QOS_1);
@@ -381,12 +435,12 @@ void go_to_sleep()
   sleep_time_usec -= sleep_time_usec % poll_interval_usec;
   sleep_time_usec -= millis() * 1000;
 
-  Serial.print("info: sleeping "); 
+  Serial.print("info: sleeping ");
   Serial.print(sleep_time_usec);
   Serial.println(" usec");
   delay(10);  // Let UART finish
 
-  ESP.deepSleep(sleep_time_usec);  
+  ESP.deepSleep(sleep_time_usec);
 }
 
 void setup()
