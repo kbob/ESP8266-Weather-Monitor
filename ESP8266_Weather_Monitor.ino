@@ -239,7 +239,7 @@ void save_config_callback()
   config_needs_saving = true;
 }
 
-void init_WiFi()
+void init_WiFi_with_manager()
 {
   bool ok;
 
@@ -297,6 +297,34 @@ void init_WiFi()
 #undef RD_PARAM
 
     write_config_data();
+  }
+}
+
+void init_WiFi_no_manager()
+{
+  // What does this do?  Original comment said,
+  // "trying to fix connection in progress hanging"
+  ETS_UART_INTR_DISABLE();
+  wifi_station_disconnect();
+  ETS_UART_INTR_ENABLE();
+  
+  WiFi.begin();
+
+  int connRes = WiFi.waitForConnectResult();
+  Serial.print("info: connection result = ");
+  Serial.println(connRes);
+
+  if (connRes != WL_CONNECTED) {
+    fatal("failed to connect");
+  }
+}
+
+void init_WiFi()
+{
+  if (jumper_is_present() || !WiFi.SSID()) {
+    init_WiFi_with_manager();
+  } else {
+    init_WiFi_no_manager();
   }
 }
 
