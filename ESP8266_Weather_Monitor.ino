@@ -34,10 +34,12 @@
 //
 //   During programming, the FTDI card is attached to the six
 //   pins at the Thing's bottom left: DTR, TX0, RX1, 3V3, NC,
-//   and GND.
+//   and GND.  The Thing does not execute code in this
+//   configuration.
 //
 //   During normal operation, pins DTR and XPD are jumpered
-//   together.
+//   together.  The FTDI board may be connected to the non-DTR
+//   pins for serial debug output.
 //
 //   To force the unit into captive portal mode, move the
 //   jumper so that pins XPD and 12 are shorted.
@@ -86,6 +88,7 @@ char aio_humid_key[32]; // Adafruit IO humidity stream key
 bool config_needs_saving;
 
 uint32_t ntp_time_sec;  // seconds since 1900-Jan-01-00:00:00Z
+uint32_t ntp_time_frac; // fractional second * 2**32
 uint32_t ntp_offset_msec; // millis when ntp_time_sec set
 
 float temp_degC;        // last temperature reading, degrees Celsius
@@ -307,11 +310,11 @@ void init_WiFi_no_manager()
   ETS_UART_INTR_DISABLE();
   wifi_station_disconnect();
   ETS_UART_INTR_ENABLE();
-  
+
   WiFi.begin();
 
   int connRes = WiFi.waitForConnectResult();
-  Serial.print("info: connection result = ");
+  Serial.print("info: Wi-Fi connection result = ");
   Serial.println(connRes);
 
   if (connRes != WL_CONNECTED) {
@@ -351,6 +354,8 @@ uint32_t receive_NTP_packet(WiFiUDP& udp)
 {
   char buf[NTP_PACKET_SIZE];
   udp.read(buf, sizeof buf);
+  unsigned char *q = (unsigned char *)(buf + 44);
+  ntp_time_frac = q[0] << 24 | q[1] << 16 | q[2] << 8 | q[3];
   unsigned char *p = (unsigned char *)(buf + 40);
   return p[0] << 24 | p[1] << 16 | p[2] << 8 | p[3] << 0;
 }
@@ -379,9 +384,12 @@ void get_NTP_time()
   Serial.print(t1 - t0);
   Serial.println("msec");
 
-  Serial.print("info: ntp_time = ");
+  Serial.print("info: ntp_time_sec = ");
   Serial.print(ntp_time_sec);
   Serial.println(" sec");
+
+  Serial.print("info: ntp_time_frac = ");
+  Serial.println(ntp_time_frac);
 
   Serial.print("info: ntp_offset = ");
   Serial.print(ntp_offset_msec);
@@ -457,11 +465,32 @@ void go_to_sleep()
   Serial.println(millis());
 
   // Calculate how long to sleep so we wake up "on the hour".
-  const uint32_t poll_interval_usec = POLL_INTERVAL_sec * 1000000;
-  uint32_t sleep_time_usec = poll_interval_usec;
-  sleep_time_usec += ntp_offset_msec * 1000;
-  sleep_time_usec -= sleep_time_usec % poll_interval_usec;
-  sleep_time_usec -= millis() * 1000;
+
+  uint32_t delay_msec = millis() - ntp_offset_msec;
+
+  uint32_t now_sec = ntp_time_sec;
+  now_sec += delay_msec / 1000;
+
+  uint32_t now_usec = ntp_time_frac / 4295;
+  now_usec += delay_msec % 1000 * 1000;
+  
+  uint32_t sleep_time_sec = (POLL_INTERVAL_sec -
+                             now_sec % POLL_INTERVAL_sec);
+  if (sleep_time_sec < POLL_INTERVAL_sec / 2) {
+    sleep_time_sec += POLL_INTERVAL_sec;
+  }
+
+  uint32_t sleep_time_usec = sleep_time_sec * 1000000;
+  sleep_time_usec -= now_usec;
+
+  Serial.print("info: delay_msec = ");
+  Serial.println(delay_msec);
+
+  Serial.print("info: now_sec = ");
+  Serial.println(now_sec);
+
+  Serial.print("info: now_usec = ");
+  Serial.println(now_usec);
 
   Serial.print("info: sleeping ");
   Serial.print(sleep_time_usec);
