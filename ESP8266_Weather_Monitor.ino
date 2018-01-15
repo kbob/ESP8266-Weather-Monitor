@@ -48,7 +48,7 @@
 //
 //   Board:         SparkFun ESP8266 Thing
 //   CPU Frequency: 80 MHz
-//   Upload Speed:  430800 baud
+//   Upload Speed:  430800
 //   Port:          /dev/cu.usbserial-AL03NN4Y
 //
 // References:
