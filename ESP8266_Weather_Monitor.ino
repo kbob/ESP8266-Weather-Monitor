@@ -44,6 +44,13 @@
 //   To force the unit into captive portal mode, move the
 //   jumper so that pins XPD and 12 are shorted.
 //
+// IDE
+//
+//   Board:         SparkFun ESP8266 Thing
+//   CPU Frequency: 80 MHz
+//   Upload Speed:  430800 baud
+//   Port:          /dev/cu.usbserial-AL03NN4Y
+//
 // References:
 //
 //   SparkFun ESP8266 Thing Hookup Guide
